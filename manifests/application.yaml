@@ -1,0 +1,90 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hotels-config
+  namespace: hotels
+data:
+  POSTGRES_HOST: hotels-database-service.hotels.svc.cluster.local
+  POSTGRES_NAME: dbname
+  POSTGRES_USER: dbuser
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hotels-secret
+  namespace: hotels
+type: Opaque
+data:
+  POSTGRES_PASS: ZGJwYXNz
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hotels-deployment
+  namespace: hotels
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: hotels
+  revisionHistoryLimit: 5
+  progressDeadlineSeconds: 250
+  minReadySeconds: 15
+  template:
+    metadata:
+      labels:
+        app: hotels
+    spec:
+      initContainers:
+      - name: init-wait-for-db
+        image: busybox
+        command: [ 'sh', '-c', 'until nc -z -v -w10 hotels-database-service 5432; do sleep 1; done' ]
+      containers:
+      - name: hotels-container
+        image: tamarastojanova/devops-hotels
+        imagePullPolicy: Always
+        resources:
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+        env:
+        - name: POSTGRES_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: hotels-config
+              key: POSTGRES_HOST
+        - name: POSTGRES_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: hotels-config
+              key: POSTGRES_NAME
+        - name: POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              name: hotels-config
+              key: POSTGRES_USER
+        - name: POSTGRES_PASS
+          valueFrom:
+            secretKeyRef:
+              name: hotels-secret
+              key: POSTGRES_PASS
+        ports:
+        - containerPort: 8000
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hotels-service
+  namespace: hotels
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8000
+  selector:
+    app: hotels
+ 
