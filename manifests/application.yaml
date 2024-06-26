@@ -23,7 +23,7 @@ metadata:
   name: hotels-deployment
   namespace: hotels
 spec:
-  replicas: 5
+  replicas: 4
   selector:
     matchLabels:
       app: hotels
